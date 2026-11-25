@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk Calculator for Distal Bland Thrombosis to IVC Tumor Thrombus</title>
+<style>
+*{box-sizing:border-box;font-family:Arial,Helvetica,sans-serif;}
+body{max-width:800px;margin:2rem auto;padding:0 1rem;background:#f7f9fa;}
+.box{background:#ffffff;padding:24px;border-radius:10px;box-shadow:0 1px 4px #0000001a;}
+h1{font-size:22px;color:#222;}
+h3{color:#2c3e50;}
+.well{background:#f0f4f8;padding:20px;border-radius:8px;margin:1rem 0;}
+.form-item{margin:16px 0;}
+label{display:block;margin-bottom:6px;font-weight:500;}
+select,input{width:100%;padding:10px;font-size:16px;border:1px solid #ccc;border-radius:6px;}
+button{background:#2980b9;color:white;border:none;padding:12px 24px;font-size:17px;border-radius:6px;cursor:pointer;}
+button:hover{background:#206b8f;}
+.result-text{font-size:32px;font-weight:bold;color:#c0392b;margin:12px 0;}
+.disclaimer{margin-top:24px;font-size:14px;color:#555;line-height:1.5;}
+#barCanvas{width:100%;height:130px;}
+</style>
+</head>
+<body>
+<div class="box">
+    <h1>Risk Calculator for Distal Bland Thrombosis to IVC Tumor Thrombus</h1>
+
+    <div class="form-item">
+        <label>Tumor thrombus level</label>
+        <select id="ttl">
+            <option value="0">Mayo 0</option>
+            <option value="1">MayoⅠ</option>
+            <option value="2">MayoⅡ</option>
+            <option value="3">MayoⅢ</option>
+            <option value="4">MayoⅣ</option>
+        </select>
+    </div>
+
+    <div class="form-item">
+        <label>Scr (μmol/L)  [44.00‑174.00]</label>
+        <input type="number" id="scr" min="44.00" max="174.00" step="0.1" value="90.00">
+    </div>
+
+    <div class="form-item">
+        <label>Uric Acid (μmol/L) [120.00‑582.00]</label>
+        <input type="number" id="uric" min="120.00" max="582.00" step="1" value="338.00">
+    </div>
+
+    <div class="form-item">
+        <label>BMI (kg/m²) [16.20‑32.90]</label>
+        <input type="number" id="bmi" min="16.20" max="32.90" step="0.1" value="24.20">
+    </div>
+
+    <div class="form-item">
+        <button id="calcBtn">Calculate Risk</button>
+    </div>
+
+    <div class="well">
+        <h3>Predicted Probability of distal bland thrombosis to the inferior vena cava tumor thrombus</h3>
+        <div class="result-text" id="resultVal">‑‑</div>
+        <canvas id="barCanvas"></canvas>
+    </div>
+
+    <div class="disclaimer">
+        <hr>
+        <p><strong>Disclaimer:</strong> This predictive tool is built from retrospective clinical data.
+        Input values outside the training‑dataset range are extrapolations and should be interpreted cautiously.
+        For research use only, not a substitute for professional clinical judgment.</p>
+    </div>
+</div>
+
+<script>
+// 模型β系数，和R硬编码版本完全一致
+const coef = {
+    intercept:     -4.3612,
+    Level1:        0.7253,
+    Level2:        2.6204,
+    Level3:        3.9001,
+    Level4:        3.8706,
+    Scr:           0.0079,
+    UricAcid:      0.0012,
+    BMI:           0.0945
+};
+
+const calcBtn = document.getElementById('calcBtn');
+const ttlEl = document.getElementById('ttl');
+const scrEl = document.getElementById('scr');
+const uricEl = document.getElementById('uric');
+const bmiEl = document.getElementById('bmi');
+const resultVal = document.getElementById('resultVal');
+const canvas = document.getElementById('barCanvas');
+const ctx = canvas.getContext('2d');
+
+function drawBar(prob){
+    const w = canvas.width = canvas.offsetWidth;
+    const h = canvas.height;
+    ctx.clearRect(0,0,w,h);
+    // 底色标尺
+    ctx.fillStyle="#dde3e8";
+    ctx.fillRect(0, h*0.35, w, h*0.3);
+    // 预测条
+    const barW = prob * w;
+    ctx.fillStyle="#2980b9";
+    ctx.fillRect(0, h*0.35, barW, h*0.3);
+    // 红色虚线标记
+    ctx.strokeStyle="#c0392b";
+    ctx.lineWidth=3;
+    ctx.setLineDash([6,4]);
+    ctx.beginPath();
+    ctx.moveTo(barW, h*0.10);
+    ctx.lineTo(barW, h*0.90);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // x轴刻度文字
+    ctx.fillStyle="#333";
+    ctx.font="13px Arial";
+    const ticks=[0,0.25,0.50,0.75,1.0];
+    ticks.forEach(t=>{
+        const x=t*w;
+        ctx.fillText((t*100)+"%", x‑12, h‑5);
+    })
+}
+
+calcBtn.onclick = function(){
+    const ttl = Number(ttlEl.value);
+    const scr = Number(scrEl.value);
+    const uric = Number(uricEl.value);
+    const bmi = Number(bmiEl.value);
+
+    let l1=0,l2=0,l3=0,l4=0;
+    if(ttl===1) l1=1;
+    if(ttl===2) l2=1;
+    if(ttl===3) l3=1;
+    if(ttl===4) l4=1;
+
+    const logit = coef.intercept +
+        l1*coef.Level1 +
+        l2*coef.Level2 +
+        l3*coef.Level3 +
+        l4*coef.Level4 +
+        scr*coef.Scr +
+        uric*coef.UricAcid +
+        bmi*coef.BMI;
+
+    const p = 1.0/(1.0 + Math.exp(-logit));
+    resultVal.innerText = (p*100).toFixed(2)+" %";
+    drawBar(p);
+}
+
+// 页面加载初始化绘图
+window.addEventListener('resize',()=>drawBar(0));
+drawBar(0);
+</script>
+</body>
+</html>
