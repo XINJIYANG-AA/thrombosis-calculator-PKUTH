@@ -111,13 +111,13 @@ function drawBar(prob){
     ctx.lineTo(barW, h*0.90);
     ctx.stroke();
     ctx.setLineDash([]);
-    // x轴刻度文字
+    // x轴刻度文字（已修复减号！）
     ctx.fillStyle="#333";
     ctx.font="13px Arial";
     const ticks=[0,0.25,0.50,0.75,1.0];
     ticks.forEach(t=>{
         const x=t*w;
-        ctx.fillText((t*100)+"%", x‑12, h‑5);
+        ctx.fillText((t*100)+"%", x-12, h-5);
     })
 }
 
